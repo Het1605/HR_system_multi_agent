@@ -56,6 +56,10 @@ class Orchestrator:
 
         if intent == "daily_report":
             return self._continue_daily_report()
+        
+        if intent == "check_attendance_summary":
+            return self._continue_attendance_summary()
+
 
         return "Something went wrong."
 
@@ -128,6 +132,32 @@ class Orchestrator:
 
         self.reset_state()
         return response
+    
+    def _continue_attendance_summary(self):
+        if not self.state["pending_data"].get("employee_id"):
+            self.state["expected_field"] = "employee_id"
+            return "Please provide employee ID."
+
+        employee_id = self.state["pending_data"]["employee_id"]
+        date = self.state["pending_data"].get("date")
+
+        attendance = self.attendance_agent.get_attendance(
+            employee_id=employee_id,
+            date=date
+        )
+
+        report = self.report_agent.generate_daily_report(
+            employee_id=employee_id,
+            date=date
+        )
+
+        self.reset_state()
+
+        return {
+            "status": "success",
+            "attendance": attendance,
+            "report": report
+        }
 
     # -------------------------
     # Main intent handler
@@ -165,6 +195,13 @@ class Orchestrator:
                 {k: v for k, v in intent_data.items() if v}
             )
             return self._continue_end_work()
+        
+        if intent == "check_attendance_summary":
+            self.state["current_intent"] = "check_attendance_summary"
+            self.state["pending_data"].update(
+                {k: v for k, v in intent_data.items() if v}
+            )
+            return self._continue_attendance_summary()
 
         # -------- DAILY REPORT --------
         if intent == "daily_report":
@@ -181,3 +218,5 @@ class Orchestrator:
             )
 
         return "Sorry, I cannot handle this request."
+    
+        
