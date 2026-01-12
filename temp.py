@@ -25,11 +25,30 @@
 
 # print(agent.search_policy("leave policy"))
 
-from orchestrator import Orchestrator
+# from orchestrator import Orchestrator
 
-orch = Orchestrator()
+# orch = Orchestrator()
 
-print(orch.handle_intent({
-    "intent": "find_employee",
-    "name": "Rahul"
-}))
+# print(orch.handle_intent({
+#     "intent": "find_employee",
+#     "name": "Rahul"
+# }))
+
+# from utils.ai_client import call_ollama
+
+# system_prompt = """
+# Convert user message into JSON.
+# Return only JSON.
+# """
+
+# user_prompt = "Show my working hours today"
+
+# print(call_ollama(system_prompt, user_prompt))
+
+
+from utils.intent_parser import parse_intent
+
+print(parse_intent("Register Rahul as employee"))
+print(parse_intent("Rahul start work today"))
+print(parse_intent("Show my report"))
+print(parse_intent("What is leave policy?"))
