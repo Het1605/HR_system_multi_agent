@@ -67,6 +67,7 @@ def add_employee(name, email, department):
     """
     Insert a new employee into the employees table.
     Returns the new employee_id.
+
     """
     conn = get_connection()
     cursor = conn.cursor()

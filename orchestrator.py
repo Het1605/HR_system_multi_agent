@@ -68,6 +68,14 @@ class Orchestrator:
         if intent == "attendance_info":
             return self._continue_attendance_info()
 
+        if intent == "find_employee":
+            response = self.employee_agent.find_employee(
+                name=self.state["pending_data"].get("name"),
+                employee_id=self.state["pending_data"].get("employee_id")
+            )
+            self.reset_state()
+            return response
+        
         return "Something went wrong."
 
     # -------------------------
@@ -228,12 +236,27 @@ class Orchestrator:
             )
             return self._continue_attendance_info()
 
-        # -------- FIND EMPLOYEE --------
+        
+        # -------- FIND EMPLOYEE (FIXED) --------
         if intent == "find_employee":
-            return self.employee_agent.find_employee(
-                name=intent_data.get("name"),
-                employee_id=intent_data.get("employee_id")
+            self.state["current_intent"] = "find_employee"
+            self.state["pending_data"].update(
+                {k: v for k, v in intent_data.items() if v}
             )
+
+            # If neither ID nor name provided, ask for it
+            if not self.state["pending_data"].get("employee_id") and not self.state["pending_data"].get("name"):
+                self.state["expected_field"] = "employee_id"
+                return "Please provide employee_id or name."
+
+            # We already have enough data → search
+            response = self.employee_agent.find_employee(
+                name=self.state["pending_data"].get("name"),
+                employee_id=self.state["pending_data"].get("employee_id")
+            )
+
+            self.reset_state()
+            return response
         
 
         # -------- DAILY REPORT --------
