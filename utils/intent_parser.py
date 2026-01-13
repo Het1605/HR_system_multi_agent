@@ -92,6 +92,12 @@ def _rule_based_intent_hint(user_input):
     """
     text = user_input.lower()
 
+    if text.strip() in ["hi", "hello", "hey", "hii"]:
+        return "greeting"
+    
+    if "service" in text or "help" in text or "what can you do" in text:
+        return "help"
+
     if "register" in text and "employee" in text:
         return "register_employee"
     if "start work" in text:

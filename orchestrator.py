@@ -42,8 +42,27 @@ class Orchestrator:
         field = self.state["expected_field"]
         intent = self.state["current_intent"]
 
-        # Save user input into pending data
-        self.state["pending_data"][field] = user_input.strip()
+        
+        # Support comma-separated multiple values
+        values = [v.strip() for v in user_input.split(",") if v.strip()]
+
+        intent = self.state["current_intent"]
+
+        if intent == "register_employee":
+            required_fields = ["name", "email", "department"]
+
+            # Find which fields are still missing
+            missing_fields = [
+                f for f in required_fields
+                if not self.state["pending_data"].get(f)
+            ]
+
+            # Map provided values to missing fields (in order)
+            for i, value in enumerate(values):
+                if i < len(missing_fields):
+                    self.state["pending_data"][missing_fields[i]] = value
+
+            return self._continue_register_employee()
 
         if intent == "register_employee":
             return self._continue_register_employee()
@@ -69,11 +88,24 @@ class Orchestrator:
     def _continue_register_employee(self):
         required_fields = ["name", "email", "department"]
 
-        for field in required_fields:
-            if not self.state["pending_data"].get(field):
-                self.state["expected_field"] = field
-                return f"Please provide {field}."
+        missing_fields = [
+            field for field in required_fields
+            if not self.state["pending_data"].get(field)
+        ]
 
+        # If something is missing, ask clearly
+        if missing_fields:
+            # Always expect the NEXT missing field
+            self.state["expected_field"] = missing_fields[0]
+
+            missing_text = "\n".join(f"- {field}" for field in missing_fields)
+
+            return (
+                "To register an employee, please provide the following details:\n"
+                f"{missing_text}"
+            )
+
+        # All data present → register
         response = self.employee_agent.register_employee(
             name=self.state["pending_data"]["name"],
             email=self.state["pending_data"]["email"],
@@ -82,7 +114,6 @@ class Orchestrator:
 
         self.reset_state()
         return response
-
     # -------------------------
     # Start work flow
     # -------------------------
@@ -164,6 +195,28 @@ class Orchestrator:
     # -------------------------
     def handle_intent(self, intent_data):
         intent = intent_data.get("intent")
+
+        if intent == "greeting":
+            return (
+                "👋 Hi! I’m your HR assistant.\n"
+                "I can help you with:\n"
+                "- Employee registration\n"
+                "- Attendance (start/end work)\n"
+                "- Daily work reports\n"
+                "- HR policies\n\n"
+                "How can I help you?"
+            )
+        
+        if intent == "help":
+            return (
+                "📋 Here’s what I can help you with:\n"
+                "1️⃣ Register employees\n"
+                "2️⃣ Find employee details\n"
+                "3️⃣ Start / end work (attendance)\n"
+                "4️⃣ View daily working hours\n"
+                "5️⃣ HR policies\n\n"
+                "Just tell me what you want to do 😊"
+            )
 
         # -------- REGISTER EMPLOYEE --------
         if intent == "register_employee":

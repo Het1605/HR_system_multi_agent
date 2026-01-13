@@ -4,6 +4,23 @@
 from orchestrator import Orchestrator
 from utils.intent_parser import parse_intent
 
+def format_response(response):
+    if isinstance(response, dict):
+        if "message" in response:
+            return response["message"]
+        if "working_hours" in response:
+            return f"⏱ You worked {response['working_hours']} hours today."
+        if "employee" in response:
+            emp = response["employee"]
+            return (
+                f"👤 Employee Details:\n"
+                f"ID: {emp['employee_id']}\n"
+                f"Name: {emp['name']}\n"
+                f"Email: {emp['email']}\n"
+                f"Department: {emp['department']}"
+            )
+        return "✅ Done."
+    return response
 
 def main():
     orchestrator = Orchestrator()
@@ -30,7 +47,7 @@ def main():
 
             response = orchestrator.handle_intent(intent_data)
 
-        print("Bot:", response)
+        print("Bot:", format_response(response))
         print()
 
 
