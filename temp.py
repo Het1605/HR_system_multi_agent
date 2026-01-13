@@ -46,22 +46,11 @@
 # print(call_ollama(system_prompt, user_prompt))
 
 
-from utils.report_generator import generate_daily_report_pdf
+from utils.vector_store import VectorStore
 
-# Temporary test data
-report_data = {
-    "employee_id": 101,
-    "name": "Rahul Sharma",
-    "email": "rahul@gmail.com",
-    "department": "IT",
-    "date": "2026-01-13",
-    "start_time": "09:10 AM",
-    "end_time": "05:40 PM",
-    "working_hours": "8.5"
-}
+vs = VectorStore("data/hr_policy.txt")
+vs.load()
 
-# Generate PDF
-file_path = generate_daily_report_pdf(report_data)
-
-print("✅ Daily Report generated successfully!")
-print("📄 File location:", file_path)
+print(vs.search("leave policy"))
+print(vs.search("attendance rules"))
+print(vs.search("office timing"))
