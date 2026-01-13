@@ -1,66 +1,63 @@
 # agents/knowledge_agent.py
-# This file defines KnowledgeAgent.
-# It answers HR-related questions using a simple text file.
-# No AI logic and no vector DB library is used.
-# This is a lightweight, beginner-friendly knowledge lookup.
+# Read-only HR policy knowledge agent (FINAL FIX)
 
-from pathlib import Path
+import os
 
 
 class KnowledgeAgent:
-    """
-    KnowledgeAgent handles:
-    - Loading HR policy text from a file
-    - Answering HR-related questions using simple keyword search
-    """
-
     def __init__(self):
-        """
-        Load HR policy text when the agent is initialized.
-        """
-        policy_path = Path(__file__).parent.parent / "data" / "hr_policy.txt"
+        self.policy_file = "data/hr_policy.txt"
 
-        if not policy_path.exists():
-            self.policy_text = ""
-        else:
-            with open(policy_path, "r", encoding="utf-8") as file:
-                self.policy_text = file.read()
+        if not os.path.exists(self.policy_file):
+            raise FileNotFoundError("HR policy file not found.")
+
+        with open(self.policy_file, "r", encoding="utf-8") as f:
+            self.policy_text = f.read()
+
+        self.policies = self._parse_policies()
+
+    def _parse_policies(self):
+        """
+        Parse policy file into a dict:
+        {
+          "leave policy": "LEAVE POLICY\n....",
+          "attendance policy": "ATTENDANCE POLICY\n....",
+        }
+        """
+        sections = self.policy_text.strip().split("\n\n")
+        policy_map = {}
+
+        for section in sections:
+            lines = section.strip().split("\n")
+            header = lines[0].strip().lower()
+            policy_map[header] = section.strip()
+
+        return policy_map
 
     def search_policy(self, query):
         """
-        Search HR policy text using simple keyword matching.
-
-        Steps:
-        1. Convert query to lowercase
-        2. Split query into keywords
-        3. Return lines that contain any keyword
+        Return exact policy, all policies, or None.
         """
+        if not query:
+            return None
 
-        if not self.policy_text:
-            return {
-                "status": "no_data",
-                "message": "HR policy file not found or empty."
-            }
+        q = query.lower().strip()
 
-        query = query.lower()
-        keywords = query.split()
+        # ---------- LIST ALL POLICIES ----------
+        if any(k in q for k in ["hr policies", "all policies", "company policies"]):
+            policy_list = "\n".join(
+                f"- {title.upper()}"
+                for title in self.policies.keys()
+            )
+            return (
+                "📘 HR POLICIES AVAILABLE:\n"
+                f"{policy_list}\n\n"
+                "Ask me about any specific policy."
+            )
 
-        matched_lines = []
+        # ---------- EXACT MATCH ----------
+        for header, content in self.policies.items():
+            if header in q:
+                return f"📘 {content}"
 
-        for line in self.policy_text.splitlines():
-            line_lower = line.lower()
-            for word in keywords:
-                if word in line_lower:
-                    matched_lines.append(line.strip())
-                    break
-
-        if not matched_lines:
-            return {
-                "status": "not_found",
-                "message": "No relevant HR policy found for your query."
-            }
-
-        return {
-            "status": "found",
-            "results": matched_lines
-        }
+        return None

@@ -245,10 +245,25 @@ class Orchestrator:
             return self._continue_daily_report()
 
         # -------- HR POLICY --------
+        # -------- HR POLICY --------
         if intent == "hr_policy":
-            return self.knowledge_agent.search_policy(
-                intent_data.get("query")
-            )
+            query = intent_data.get("query")
+
+            if not query:
+                return (
+                    "📘 Please specify which HR policy you want to know about.\n"
+                    "For example: leave policy, attendance policy, working hours."
+                )
+
+            response = self.knowledge_agent.search_policy(query)
+
+            if not response:
+                return (
+                    "📘 I couldn’t find a matching HR policy.\n"
+                    "You can ask about leave policy, attendance policy, or working hours."
+                )
+
+            return response
 
         return "Sorry, I cannot handle this request."
     

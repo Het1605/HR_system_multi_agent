@@ -100,8 +100,12 @@ def _rule_based_intent_hint(user_input):
     # ---------- REGISTER EMPLOYEE ----------
     if "register" in text and "employee" in text:
         return "register_employee"
+    
+    # ---------- HR POLICY ----------
+    if "policy" in text:
+        return "hr_policy"
 
-    # ---------- ATTENDANCE INFO (HIGH PRIORITY) ----------
+    # ---------- ATTENDANCE INFO  ----------
     if any(k in text for k in [
         "attendance record",
         "attendance",
@@ -120,9 +124,7 @@ def _rule_based_intent_hint(user_input):
     ]):
         return "daily_report"
 
-    # ---------- HR POLICY ----------
-    if "policy" in text:
-        return "hr_policy"
+    
 
     return None
 
@@ -174,5 +176,9 @@ def parse_intent(user_input):
         intent_data["intent"] = "attendance_info"
     elif hint and not intent_data.get("intent"):
         intent_data["intent"] = hint
+
+    # ---------- Ensure query for HR policy ----------
+    if intent_data["intent"] == "hr_policy" and not intent_data.get("query"):
+        intent_data["query"] = user_input
 
     return intent_data
