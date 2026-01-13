@@ -100,10 +100,19 @@ def _rule_based_intent_hint(user_input):
 
     if "register" in text and "employee" in text:
         return "register_employee"
-    if "start work" in text:
+    
+    # Attendance - start work
+    if any(k in text for k in [
+        "start work", "start my work", "punch in", "begin work", "mark attendance"
+    ]):
         return "start_work"
-    if "end work" in text:
+
+    # Attendance - end work
+    if any(k in text for k in [
+        "end work", "finish work", "punch out", "stop work", "done for today"
+    ]):
         return "end_work"
+    
     if "report" in text:
         return "daily_report"
     if "policy" in text:

@@ -46,9 +46,22 @@
 # print(call_ollama(system_prompt, user_prompt))
 
 
-from utils.intent_parser import parse_intent
+from utils.report_generator import generate_daily_report_pdf
 
-print(parse_intent("Register Rahul as employee"))
-print(parse_intent("Rahul start work today"))
-print(parse_intent("Show my report"))
-print(parse_intent("What is leave policy?"))
+# Temporary test data
+report_data = {
+    "employee_id": 101,
+    "name": "Rahul Sharma",
+    "email": "rahul@gmail.com",
+    "department": "IT",
+    "date": "2026-01-13",
+    "start_time": "09:10 AM",
+    "end_time": "05:40 PM",
+    "working_hours": "8.5"
+}
+
+# Generate PDF
+file_path = generate_daily_report_pdf(report_data)
+
+print("✅ Daily Report generated successfully!")
+print("📄 File location:", file_path)

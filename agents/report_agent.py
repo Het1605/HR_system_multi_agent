@@ -1,72 +1,76 @@
 # agents/report_agent.py
-# This file defines ReportAgent.
-# It generates daily working hours reports for employees.
-# No AI logic is used here.
-# This agent ONLY reads data and calculates results.
+# Handles daily work report logic and PDF generation
 
-from datetime import datetime
-from db.database import get_attendance_for_date
+from datetime import date as date_obj, datetime
+from db.database import get_employee_by_id, get_attendance_for_date
+from utils.report_generator import generate_daily_report_pdf
 
 
 class ReportAgent:
-    """
-    ReportAgent handles:
-    - Generating daily working hours report for an employee
-    """
-
-    def generate_daily_report(self, employee_id, date):
+    def generate_daily_report(self, employee_id, date=None):
         """
-        Generate a daily work report for a given employee and date.
-
-        Steps:
-        1. Fetch attendance record
-        2. Validate start and end time
-        3. Calculate working hours
-        4. Return structured report
+        Generate a daily work report PDF for an employee.
         """
 
-        attendance = get_attendance_for_date(employee_id, date)
+        # Use today's date if not provided
+        if not date:
+            date = date_obj.today().isoformat()
 
-        # Case 1: No attendance record
-        if attendance is None:
+        # ---------- Fetch employee ----------
+        employee = get_employee_by_id(employee_id)
+        if not employee:
             return {
-                "status": "no_record",
+                "status": "error",
+                "message": "Employee not found."
+            }
+
+        # ---------- Fetch attendance ----------
+        attendance = get_attendance_for_date(employee_id, date)
+        if not attendance:
+            return {
+                "status": "error",
                 "message": "No attendance record found for this date."
             }
 
-        start_time = attendance["start_time"]
-        end_time = attendance["end_time"]
+        start_time = attendance.get("start_time")
+        end_time = attendance.get("end_time")
 
-        # Case 2: Work not started
-        if start_time is None:
+        if not start_time:
             return {
-                "status": "not_started",
-                "message": "Work has not been started for this date."
+                "status": "error",
+                "message": "Work has not been started yet."
             }
 
-        # Case 3: Work not ended
-        if end_time is None:
+        if not end_time:
             return {
-                "status": "in_progress",
-                "message": "Work is still in progress. End time not recorded yet.",
-                "start_time": start_time
+                "status": "error",
+                "message": "Work has not been ended yet."
             }
 
-        # Case 4: Calculate working hours
+        # ---------- Calculate working hours ----------
         start_dt = datetime.strptime(start_time, "%H:%M")
         end_dt = datetime.strptime(end_time, "%H:%M")
 
-        duration = end_dt - start_dt
-        total_minutes = int(duration.total_seconds() // 60)
+        working_seconds = (end_dt - start_dt).seconds
+        working_hours = round(working_seconds / 3600, 2)
 
-        hours = total_minutes // 60
-        minutes = total_minutes % 60
-
-        return {
-            "status": "completed",
-            "employee_id": employee_id,
+        # ---------- Prepare report data ----------
+        report_data = {
+            "employee_id": employee["employee_id"],
+            "name": employee["name"],
+            "email": employee["email"],
+            "department": employee["department"],
             "date": date,
             "start_time": start_time,
             "end_time": end_time,
-            "working_hours": f"{hours}h {minutes}m"
+            "working_hours": working_hours
+        }
+
+        # ---------- Generate PDF ----------
+        file_path = generate_daily_report_pdf(report_data)
+
+        return {
+            "status": "success",
+            "message": "Daily work report generated successfully.",
+            "file_path": file_path
         }

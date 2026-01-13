@@ -34,7 +34,8 @@ class EmployeeAgent:
                 "status": "exists",
                 "message": "Employee already registered with this email."
             }
-
+        department = department.strip().upper()
+        
         employee_id = add_employee(name, email, department)
 
         return {

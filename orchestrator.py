@@ -38,34 +38,29 @@ class Orchestrator:
     # -------------------------
     # Follow-up handler
     # -------------------------
+    
     def handle_followup(self, user_input):
-        field = self.state["expected_field"]
         intent = self.state["current_intent"]
 
-        
-        # Support comma-separated multiple values
-        values = [v.strip() for v in user_input.split(",") if v.strip()]
-
-        intent = self.state["current_intent"]
-
+        # ---------- REGISTRATION (special case) ----------
         if intent == "register_employee":
+            values = [v.strip() for v in user_input.split(",") if v.strip()]
             required_fields = ["name", "email", "department"]
 
-            # Find which fields are still missing
             missing_fields = [
                 f for f in required_fields
                 if not self.state["pending_data"].get(f)
             ]
 
-            # Map provided values to missing fields (in order)
             for i, value in enumerate(values):
                 if i < len(missing_fields):
                     self.state["pending_data"][missing_fields[i]] = value
 
             return self._continue_register_employee()
 
-        if intent == "register_employee":
-            return self._continue_register_employee()
+        # ---------- ALL OTHER FLOWS (simple assignment) ----------
+        field = self.state["expected_field"]
+        self.state["pending_data"][field] = user_input.strip()
 
         if intent == "start_work":
             return self._continue_start_work()
@@ -75,10 +70,6 @@ class Orchestrator:
 
         if intent == "daily_report":
             return self._continue_daily_report()
-        
-        if intent == "check_attendance_summary":
-            return self._continue_attendance_summary()
-
 
         return "Something went wrong."
 
@@ -120,7 +111,7 @@ class Orchestrator:
     def _continue_start_work(self):
         if not self.state["pending_data"].get("employee_id"):
             self.state["expected_field"] = "employee_id"
-            return "Please provide employee ID."
+            return "Please provide your employee ID to start work."
 
         response = self.attendance_agent.start_work(
             employee_id=self.state["pending_data"]["employee_id"],
@@ -128,7 +119,13 @@ class Orchestrator:
             start_time=self.state["pending_data"].get("start_time")
         )
 
-        self.reset_state()
+        if response.get("status") in [
+            "success",
+            "already_started"
+        ]:
+             self.reset_state()
+
+
         return response
 
     # -------------------------
@@ -137,7 +134,7 @@ class Orchestrator:
     def _continue_end_work(self):
         if not self.state["pending_data"].get("employee_id"):
             self.state["expected_field"] = "employee_id"
-            return "Please provide employee ID."
+            return "Please provide your employee ID to end work."
 
         response = self.attendance_agent.end_work(
             employee_id=self.state["pending_data"]["employee_id"],
@@ -145,7 +142,10 @@ class Orchestrator:
             end_time=self.state["pending_data"].get("end_time")
         )
 
-        self.reset_state()
+        # reset state on terminal responses
+        if response.get("status") in ["success", "already_ended", "not_started"]:
+            self.reset_state()
+
         return response
 
     # -------------------------
@@ -154,15 +154,24 @@ class Orchestrator:
     def _continue_daily_report(self):
         if not self.state["pending_data"].get("employee_id"):
             self.state["expected_field"] = "employee_id"
-            return "Please provide employee ID."
+            return "Please provide your employee ID to generate daily report."
 
         response = self.report_agent.generate_daily_report(
             employee_id=self.state["pending_data"]["employee_id"],
             date=self.state["pending_data"].get("date")
         )
 
+        # Reset state after terminal response
         self.reset_state()
-        return response
+
+        # Human-friendly response
+        if response.get("status") == "success":
+            return (
+                "📄 Your daily work report has been generated successfully.\n"
+                f"File saved at: {response['file_path']}"
+            )
+
+        return response.get("message", "Unable to generate daily report.")
     
     def _continue_attendance_summary(self):
         if not self.state["pending_data"].get("employee_id"):
