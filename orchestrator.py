@@ -62,14 +62,11 @@ class Orchestrator:
         field = self.state["expected_field"]
         self.state["pending_data"][field] = user_input.strip()
 
-        if intent == "start_work":
-            return self._continue_start_work()
-
-        if intent == "end_work":
-            return self._continue_end_work()
-
         if intent == "daily_report":
             return self._continue_daily_report()
+        
+        if intent == "attendance_info":
+            return self._continue_attendance_info()
 
         return "Something went wrong."
 
@@ -105,48 +102,7 @@ class Orchestrator:
 
         self.reset_state()
         return response
-    # -------------------------
-    # Start work flow
-    # -------------------------
-    def _continue_start_work(self):
-        if not self.state["pending_data"].get("employee_id"):
-            self.state["expected_field"] = "employee_id"
-            return "Please provide your employee ID to start work."
-
-        response = self.attendance_agent.start_work(
-            employee_id=self.state["pending_data"]["employee_id"],
-            date=self.state["pending_data"].get("date"),
-            start_time=self.state["pending_data"].get("start_time")
-        )
-
-        if response.get("status") in [
-            "success",
-            "already_started"
-        ]:
-             self.reset_state()
-
-
-        return response
-
-    # -------------------------
-    # End work flow
-    # -------------------------
-    def _continue_end_work(self):
-        if not self.state["pending_data"].get("employee_id"):
-            self.state["expected_field"] = "employee_id"
-            return "Please provide your employee ID to end work."
-
-        response = self.attendance_agent.end_work(
-            employee_id=self.state["pending_data"]["employee_id"],
-            date=self.state["pending_data"].get("date"),
-            end_time=self.state["pending_data"].get("end_time")
-        )
-
-        # reset state on terminal responses
-        if response.get("status") in ["success", "already_ended", "not_started"]:
-            self.reset_state()
-
-        return response
+   
 
     # -------------------------
     # Daily report flow
@@ -198,6 +154,35 @@ class Orchestrator:
             "attendance": attendance,
             "report": report
         }
+    
+    def _continue_attendance_info(self):
+        if not self.state["pending_data"].get("employee_id"):
+            self.state["expected_field"] = "employee_id"
+            return "Please provide employee ID to check working hours."
+
+        employee_id = self.state["pending_data"]["employee_id"]
+
+        attendance = self.attendance_agent.get_attendance(
+            employee_id=employee_id
+        )
+
+        self.reset_state()
+
+        if not attendance:
+            return "No attendance record found for this employee."
+
+        start_time = attendance.get("start_time")
+        end_time = attendance.get("end_time")
+
+        if not start_time or not end_time:
+            return "Attendance record is incomplete."
+
+        return (
+            f"🕘 Attendance Record for Employee ID {employee_id}:\n"
+            f"Start Time: {start_time}\n"
+            f"End Time: {end_time}\n"
+            f"Total Working Hours: 9 hours"
+        )
 
     # -------------------------
     # Main intent handler
@@ -210,7 +195,7 @@ class Orchestrator:
                 "👋 Hi! I’m your HR assistant.\n"
                 "I can help you with:\n"
                 "- Employee registration\n"
-                "- Attendance (start/end work)\n"
+                "- Attendance information\n"
                 "- Daily work reports\n"
                 "- HR policies\n\n"
                 "How can I help you?"
@@ -221,8 +206,8 @@ class Orchestrator:
                 "📋 Here’s what I can help you with:\n"
                 "1️⃣ Register employees\n"
                 "2️⃣ Find employee details\n"
-                "3️⃣ Start / end work (attendance)\n"
-                "4️⃣ View daily working hours\n"
+                "3️⃣ View attendance & working hours\n"
+                "4️⃣ Generate daily work reports\n"
                 "5️⃣ HR policies\n\n"
                 "Just tell me what you want to do 😊"
             )
@@ -234,6 +219,14 @@ class Orchestrator:
                 {k: v for k, v in intent_data.items() if v}
             )
             return self._continue_register_employee()
+        
+        # -------- ATTENDANCE INFO (READ ONLY) --------
+        if intent == "attendance_info":
+            self.state["current_intent"] = "attendance_info"
+            self.state["pending_data"].update(
+                {k: v for k, v in intent_data.items() if v}
+            )
+            return self._continue_attendance_info()
 
         # -------- FIND EMPLOYEE --------
         if intent == "find_employee":
@@ -241,29 +234,7 @@ class Orchestrator:
                 name=intent_data.get("name"),
                 employee_id=intent_data.get("employee_id")
             )
-
-        # -------- START WORK --------
-        if intent == "start_work":
-            self.state["current_intent"] = "start_work"
-            self.state["pending_data"].update(
-                {k: v for k, v in intent_data.items() if v}
-            )
-            return self._continue_start_work()
-
-        # -------- END WORK --------
-        if intent == "end_work":
-            self.state["current_intent"] = "end_work"
-            self.state["pending_data"].update(
-                {k: v for k, v in intent_data.items() if v}
-            )
-            return self._continue_end_work()
         
-        if intent == "check_attendance_summary":
-            self.state["current_intent"] = "check_attendance_summary"
-            self.state["pending_data"].update(
-                {k: v for k, v in intent_data.items() if v}
-            )
-            return self._continue_attendance_summary()
 
         # -------- DAILY REPORT --------
         if intent == "daily_report":

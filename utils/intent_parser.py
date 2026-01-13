@@ -42,20 +42,16 @@ Schema:
   "email": null,
   "department": null,
   "date": null,
-  "start_time": null,
-  "end_time": null,
   "query": null
 }
 
 Valid intents:
 register_employee
 find_employee
-start_work
-end_work
+attendance_info
 daily_report
 hr_policy
 """
-
 
 # --------------------------------------------------
 # Helpers
@@ -89,37 +85,46 @@ def _extract_json(text):
 def _rule_based_intent_hint(user_input):
     """
     Light rule-based hints to help local LLM.
+    Priority matters.
     """
-    text = user_input.lower()
+    text = user_input.lower().strip()
 
-    if text.strip() in ["hi", "hello", "hey", "hii"]:
+    # ---------- GREETING ----------
+    if text in ["hi", "hello", "hey", "hii"]:
         return "greeting"
-    
-    if "service" in text or "help" in text or "what can you do" in text:
+
+    # ---------- HELP / SERVICES ----------
+    if any(k in text for k in ["service", "help", "what can you do"]):
         return "help"
 
+    # ---------- REGISTER EMPLOYEE ----------
     if "register" in text and "employee" in text:
         return "register_employee"
-    
-    # Attendance - start work
-    if any(k in text for k in [
-        "start work", "start my work", "punch in", "begin work", "mark attendance"
-    ]):
-        return "start_work"
 
-    # Attendance - end work
+    # ---------- ATTENDANCE INFO (HIGH PRIORITY) ----------
     if any(k in text for k in [
-        "end work", "finish work", "punch out", "stop work", "done for today"
+        "attendance record",
+        "attendance",
+        "working hour",
+        "working hours",
+        "work hours"
     ]):
-        return "end_work"
-    
-    if "report" in text:
+        return "attendance_info"
+
+    # ---------- DAILY REPORT ----------
+    if any(k in text for k in [
+        "daily report",
+        "work report",
+        "generate report",
+        "show report"
+    ]):
         return "daily_report"
+
+    # ---------- HR POLICY ----------
     if "policy" in text:
         return "hr_policy"
 
     return None
-
 
 # --------------------------------------------------
 # Main function
@@ -160,14 +165,14 @@ def parse_intent(user_input):
     # ---------- Merge with schema ----------
     intent_data = {**INTENT_SCHEMA, **parsed}
 
-    # ---------- Normalize date & time ----------
+    # ---------- Normalize date ----------
     if intent_data["date"] in ("today", None):
         intent_data["date"] = _today_date()
 
-    if intent_data["intent"] == "start_work" and intent_data["start_time"] is None:
-        intent_data["start_time"] = _current_time()
-
-    if intent_data["intent"] == "end_work" and intent_data["end_time"] is None:
-        intent_data["end_time"] = _current_time()
+    # ---------- FINAL INTENT OVERRIDE (CRITICAL FIX) ----------
+    if hint == "attendance_info":
+        intent_data["intent"] = "attendance_info"
+    elif hint and not intent_data.get("intent"):
+        intent_data["intent"] = hint
 
     return intent_data
