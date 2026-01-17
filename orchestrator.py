@@ -50,6 +50,7 @@ class Orchestrator:
         # ---------- REGISTRATION (special case) ----------
         if intent == "register_employee":
             values = [v.strip() for v in user_input.split(",") if v.strip()]
+            
             required_fields = ["name", "email", "department"]
 
             missing_fields = [
