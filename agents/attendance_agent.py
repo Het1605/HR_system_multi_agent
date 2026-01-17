@@ -1,28 +1,27 @@
 # agents/attendance_agent.py
-# Read-only Attendance Agent
+# Read-only Attendance Agent (HR-driven model)
 
-from db.database import get_attendance_for_date
-from datetime import date as date_obj
+from db.database import get_working_hours
 
 
 class AttendanceAgent:
-    def get_attendance(self, employee_id, date=None):
+    def get_attendance(self, employee_id, date):
         """
-        Fetch attendance record for an employee (read-only).
+        Fetch working hours for an employee on a given date.
+        Read-only access.
         """
 
-        # Default to fixed date or today (as per your DB initialization)
-        if not date:
-            date = date_obj.today().isoformat()
+        if not employee_id or not date:
+            return None
 
-        attendance = get_attendance_for_date(employee_id, date)
+        working_hours = get_working_hours(employee_id, date)
 
-        if not attendance:
+        if not working_hours:
             return None
 
         return {
             "employee_id": employee_id,
             "date": date,
-            "start_time": attendance.get("start_time"),
-            "end_time": attendance.get("end_time")
+            "start_time": working_hours["start_time"],
+            "end_time": working_hours["end_time"]
         }

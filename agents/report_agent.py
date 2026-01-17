@@ -1,20 +1,18 @@
 # agents/report_agent.py
 # Handles daily work report logic and PDF generation
+# HR-driven attendance model
 
-from datetime import date as date_obj, datetime
-from db.database import get_employee_by_id, get_attendance_for_date
+from datetime import datetime
+from db.database import get_employee_by_id, get_working_hours
 from utils.report_generator import generate_daily_report_pdf
 
 
 class ReportAgent:
-    def generate_daily_report(self, employee_id, date=None):
+    def generate_daily_report(self, employee_id, date):
         """
-        Generate a daily work report PDF for an employee.
+        Generate a daily work report PDF for an employee
+        using HR-assigned working hours.
         """
-
-        # Use today's date if not provided
-        if not date:
-            date = date_obj.today().isoformat()
 
         # ---------- Fetch employee ----------
         employee = get_employee_by_id(employee_id)
@@ -24,28 +22,16 @@ class ReportAgent:
                 "message": "Employee not found."
             }
 
-        # ---------- Fetch attendance ----------
-        attendance = get_attendance_for_date(employee_id, date)
-        if not attendance:
+        # ---------- Fetch working hours ----------
+        working_hours_data = get_working_hours(employee_id, date)
+        if not working_hours_data:
             return {
                 "status": "error",
-                "message": "No attendance record found for this date."
+                "message": "No working hours assigned for this date."
             }
 
-        start_time = attendance.get("start_time")
-        end_time = attendance.get("end_time")
-
-        if not start_time:
-            return {
-                "status": "error",
-                "message": "Work has not been started yet."
-            }
-
-        if not end_time:
-            return {
-                "status": "error",
-                "message": "Work has not been ended yet."
-            }
+        start_time = working_hours_data["start_time"]
+        end_time = working_hours_data["end_time"]
 
         # ---------- Calculate working hours ----------
         start_dt = datetime.strptime(start_time, "%H:%M")

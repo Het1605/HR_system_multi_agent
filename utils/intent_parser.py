@@ -1,6 +1,6 @@
 # utils/intent_parser.py
 # Converts raw user text into a SAFE, STRUCTURED intent
-# Uses local Ollama with retries + guardrails
+# HR-driven attendance model (NO auto time)
 
 import json
 from datetime import datetime
@@ -32,7 +32,7 @@ BASE_SYSTEM_PROMPT = """
 Extract intent and entities from the user message.
 Return ONLY valid JSON.
 Do NOT explain anything.
-If unsure, still try.
+Do NOT guess missing values.
 
 Schema:
 {
@@ -42,12 +42,15 @@ Schema:
   "email": null,
   "department": null,
   "date": null,
+  "start_time": null,
+  "end_time": null,
   "query": null
 }
 
 Valid intents:
 register_employee
 find_employee
+assign_working_hours
 attendance_info
 daily_report
 hr_policy
@@ -59,10 +62,6 @@ hr_policy
 
 def _today_date():
     return datetime.now().strftime("%Y-%m-%d")
-
-
-def _current_time():
-    return datetime.now().strftime("%H:%M")
 
 
 def _fallback_intent():
@@ -93,25 +92,33 @@ def _rule_based_intent_hint(user_input):
     if text in ["hi", "hello", "hey", "hii"]:
         return "greeting"
 
-    # ---------- HELP / SERVICES ----------
+    # ---------- HELP ----------
     if any(k in text for k in ["service", "help", "what can you do"]):
         return "help"
 
     # ---------- REGISTER EMPLOYEE ----------
     if "register" in text and "employee" in text:
         return "register_employee"
-    
-    # ---------- HR POLICY ----------
-    if "policy" in text:
-        return "hr_policy"
 
-    # ---------- ATTENDANCE INFO  ----------
+    # ---------- ASSIGN WORKING HOURS (HR ACTION) ----------
+    if any(k in text for k in [
+        "start work",
+        "worked on",
+        "will work",
+        "working hours",
+        "set working",
+        "assign working",
+        "work from",
+        "work at"
+    ]):
+        return "assign_working_hours"
+
+    # ---------- ATTENDANCE INFO (READ ONLY) ----------
     if any(k in text for k in [
         "attendance record",
-        "attendance",
-        "working hour",
-        "working hours",
-        "work hours"
+        "attendance info",
+        "working hour of",
+        "work hours of"
     ]):
         return "attendance_info"
 
@@ -124,9 +131,12 @@ def _rule_based_intent_hint(user_input):
     ]):
         return "daily_report"
 
-    
+    # ---------- HR POLICY ----------
+    if "policy" in text:
+        return "hr_policy"
 
     return None
+
 
 # --------------------------------------------------
 # Main function
@@ -135,11 +145,7 @@ def _rule_based_intent_hint(user_input):
 def parse_intent(user_input):
     """
     Convert user input text into structured intent.
-    Includes:
-    - rule hints
-    - AI retry
-    - JSON extraction
-    - safe fallback
+    HR-driven: no auto time filling.
     """
 
     hint = _rule_based_intent_hint(user_input)
@@ -148,33 +154,24 @@ def parse_intent(user_input):
     if hint:
         system_prompt += f"\nHint: intent is likely '{hint}'."
 
-    # ---------- TRY 1 ----------
+    # ---------- TRY ----------
     try:
         raw = call_ollama(system_prompt, user_input)
         clean = _extract_json(raw)
         parsed = json.loads(clean)
-
-    # ---------- RETRY ----------
-    except Exception:
-        try:
-            raw = call_ollama(BASE_SYSTEM_PROMPT, user_input)
-            clean = _extract_json(raw)
-            parsed = json.loads(clean)
-        except Exception as e:
-            print("⚠️ AI intent parsing failed:", e)
-            return _fallback_intent()
+    except Exception as e:
+        print("⚠️ AI intent parsing failed:", e)
+        return _fallback_intent()
 
     # ---------- Merge with schema ----------
     intent_data = {**INTENT_SCHEMA, **parsed}
 
-    # ---------- Normalize date ----------
-    if intent_data["date"] in ("today", None):
+    # ---------- Resolve date ONLY if explicitly today ----------
+    if intent_data["date"] == "today":
         intent_data["date"] = _today_date()
 
-    # ---------- FINAL INTENT OVERRIDE (CRITICAL FIX) ----------
-    if hint == "attendance_info":
-        intent_data["intent"] = "attendance_info"
-    elif hint and not intent_data.get("intent"):
+    # ---------- FINAL INTENT OVERRIDE ----------
+    if hint:
         intent_data["intent"] = hint
 
     # ---------- Ensure query for HR policy ----------

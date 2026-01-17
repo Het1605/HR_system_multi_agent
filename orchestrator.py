@@ -7,6 +7,11 @@ from agents.attendance_agent import AttendanceAgent
 from agents.report_agent import ReportAgent
 from agents.knowledge_agent import KnowledgeAgent
 
+from db.database import (
+    attendance_exists,
+    assign_working_hours,
+    get_working_hours
+)
 
 class Orchestrator:
     def __init__(self):
@@ -66,6 +71,7 @@ class Orchestrator:
             return self._continue_daily_report()
         
         if intent == "attendance_info":
+            self.state["pending_data"][self.state["expected_field"]] = user_input.strip()
             return self._continue_attendance_info()
 
         if intent == "find_employee":
@@ -75,6 +81,10 @@ class Orchestrator:
             )
             self.reset_state()
             return response
+        
+        if intent == "assign_working_hours":
+            self.state["pending_data"][self.state["expected_field"]] = user_input.strip()
+            return self._continue_assign_working_hours()
         
         return "Something went wrong."
 
@@ -163,33 +173,91 @@ class Orchestrator:
             "report": report
         }
     
+    # -------------------------
+    # Attendance info flow (READ ONLY)
+    # -------------------------
     def _continue_attendance_info(self):
         if not self.state["pending_data"].get("employee_id"):
             self.state["expected_field"] = "employee_id"
             return "Please provide employee ID to check working hours."
 
+        if not self.state["pending_data"].get("date"):
+            self.state["expected_field"] = "date"
+            return "Please provide the date."
+
         employee_id = self.state["pending_data"]["employee_id"]
+        date = self.state["pending_data"]["date"]
 
         attendance = self.attendance_agent.get_attendance(
-            employee_id=employee_id
+            employee_id=employee_id,
+            date=date
         )
 
         self.reset_state()
 
         if not attendance:
-            return "No attendance record found for this employee."
+            return (
+                f"No working hours assigned for employee {employee_id} on {date}."
+            )
 
-        start_time = attendance.get("start_time")
-        end_time = attendance.get("end_time")
-
-        if not start_time or not end_time:
-            return "Attendance record is incomplete."
+        start_time = attendance["start_time"]
+        end_time = attendance["end_time"]
 
         return (
-            f"🕘 Attendance Record for Employee ID {employee_id}:\n"
-            f"Start Time: {start_time}\n"
-            f"End Time: {end_time}\n"
-            f"Total Working Hours: 9 hours"
+            f"🕘 Working Hours for Employee ID {employee_id}\n"
+            f"📅 Date: {date}\n"
+            f"⏰ Start Time: {start_time}\n"
+            f"⏰ End Time: {end_time}"
+        )
+
+    # -------------------------
+    # Assign working hours flow (HR-driven)
+    # -------------------------
+    def _continue_assign_working_hours(self):
+        required_fields = ["employee_id", "date", "start_time", "end_time"]
+
+        missing_fields = [
+            f for f in required_fields
+            if not self.state["pending_data"].get(f)
+        ]
+
+        # Ask for missing info
+        if missing_fields:
+            self.state["expected_field"] = missing_fields[0]
+
+            missing_text = "\n".join(f"- {f}" for f in missing_fields)
+            return (
+                "To assign working hours, please provide:\n"
+                f"{missing_text}"
+            )
+
+        employee_id = self.state["pending_data"]["employee_id"]
+        date = self.state["pending_data"]["date"]
+        start_time = self.state["pending_data"]["start_time"]
+        end_time = self.state["pending_data"]["end_time"]
+
+        # Check duplicate
+        if attendance_exists(employee_id, date):
+            self.reset_state()
+            return (
+                f"⚠️ Working hours already exist for employee {employee_id} on {date}."
+            )
+
+        # Assign working hours
+        assign_working_hours(
+            employee_id=employee_id,
+            date=date,
+            start_time=start_time,
+            end_time=end_time
+        )
+
+        self.reset_state()
+
+        return (
+            f"✅ Working hours assigned successfully.\n"
+            f"Employee ID: {employee_id}\n"
+            f"Date: {date}\n"
+            f"Time: {start_time} – {end_time}"
         )
 
     # -------------------------
@@ -266,9 +334,17 @@ class Orchestrator:
                 {k: v for k, v in intent_data.items() if v}
             )
             return self._continue_daily_report()
+        
+        # -------- ASSIGN WORKING HOURS (HR) --------
+        if intent == "assign_working_hours":
+            self.state["current_intent"] = "assign_working_hours"
+            self.state["pending_data"].update(
+                {k: v for k, v in intent_data.items() if v}
+            )
+            return self._continue_assign_working_hours()
 
         # -------- HR POLICY --------
-        # -------- HR POLICY --------
+        
         if intent == "hr_policy":
             query = intent_data.get("query")
 
